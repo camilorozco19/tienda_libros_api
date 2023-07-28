@@ -1,56 +1,97 @@
 <?php
 
-namespace App\Http\Controllers\Api\V1;
+namespace App\Http\Controllers;
 
 use App\Models\Book;
-use Illuminate\Http\Response;
-use App\Http\Requests\SaveBookRequest;
-use App\Http\Controllers\Api\Controller;
+use App\Models\Category;
+use App\Models\LiteraryGenre;
+use App\Models\Author;
+use Illuminate\Http\Request;
+use App\Http\Resources\BookResource;
 
 class BookController extends Controller
 {
-    public function index()
-    {
-        $books = Book::all();
-
-        return response()->json(['success' => true, 'data' => $books]);
-    }
-
     public function show($id)
     {
-        $book = Book::find($id);
-
-        return $this->checkModelExists(function () use ($book) {
-            return response()->json(['success' => true, 'data' => $book]);
-        }, $book, trans('messages.book.not_found'));
+        // Incluimos las relaciones "category", "genres" y "authors"
+        $book = Book::with('category', 'genres', 'authors')->find($id);
+        return new BookResource($book);
     }
 
-    public function store(SaveBookRequest $request)
+    public function create()
     {
-        $book = Book::create($request->all());
+        $categories = Category::all();
+        $literaryGenres = LiteraryGenre::all();
+        $authors = Author::all();
 
-        return response()->json(['success' => true, 'message' => trans('messages.book.created'), 'data' => $book], Response::HTTP_CREATED);
+        return view('books.create', compact('categories', 'literaryGenres', 'authors'));
     }
 
-    public function update(SaveBookRequest $request, $id)
+    public function store(Request $request)
     {
+        $request->validate([
+            'title' => 'required',
+            'description' => 'required',
+            'category_id' => 'required|exists:categories,id',
+            'genres' => 'required|array',
+            'genres.*' => 'exists:literary_genres,id',
+            'authors' => 'required|array',
+            'authors.*' => 'exists:authors,id',
+        ]);
+
+        $book = Book::create([
+            'title' => $request->title,
+            'description' => $request->description,
+            'category_id' => $request->category_id,
+        ]);
+
+        $book->genres()->attach($request->genres);
+        $book->authors()->attach($request->authors);
+
+        return redirect()->route('books.show', $book->id)->with('success', 'Book created successfully.');
+    }
+
+    public function edit($id)
+    {
+        $book = Book::with('genres', 'authors')->find($id);
+        $categories = Category::all();
+        $literaryGenres = LiteraryGenre::all();
+        $authors = Author::all();
+
+        return view('books.edit', compact('book', 'categories', 'literaryGenres', 'authors'));
+    }
+
+    public function update(Request $request, $id)
+    {
+        $request->validate([
+            'title' => 'required',
+            'description' => 'required',
+            'category_id' => 'required|exists:categories,id',
+            'genres' => 'required|array',
+            'genres.*' => 'exists:literary_genres,id',
+            'authors' => 'required|array',
+            'authors.*' => 'exists:authors,id',
+        ]);
+
         $book = Book::find($id);
 
-        return $this->checkModelExists(function () use ($book, $request) {
-            $book->update($request->all());
+        $book->update([
+            'title' => $request->title,
+            'description' => $request->description,
+            'category_id' => $request->category_id,
+        ]);
 
-            return response()->json(['success' => true, 'message' => trans('messages.book.updated'), 'data' => $book], Response::HTTP_CREATED);
-        }, $book, trans('messages.book.not_found'));
+        $book->genres()->sync($request->genres);
+        $book->authors()->sync($request->authors);
+
+        return redirect()->route('books.show', $book->id)->with('success', 'Book updated successfully.');
     }
 
     public function destroy($id)
     {
         $book = Book::find($id);
+        $book->delete();
 
-        return $this->checkModelExists(function () use ($book){
-            $book->delete();
-
-            return response()->json(null, Response::HTTP_NO_CONTENT);
-        }, $book, trans('messages.book.not_found'));
+        return redirect()->route('books.index')->with('success', 'Book deleted successfully.');
     }
 }

@@ -12,14 +12,13 @@ return new class extends Migration
      * @return void
      */
     public function up()
-    {
-        Schema::create('literary_genres', function (Blueprint $table) {
-            $table->bigIncrements('id');
-            $table->string('name', 100);
-            $table->string('description', 1000);
-            $table->timestamps();
-        });
-    }
+{
+    Schema::create('literary_genres', function (Blueprint $table) {
+        $table->id();
+        $table->string('name');
+        $table->timestamps();
+    });
+}
 
     /**
      * Reverse the migrations.
